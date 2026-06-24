@@ -1,0 +1,10 @@
+project_id = "ecaimdsdugxouzaeyfub"
+
+[functions.emo-chat]
+verify_jwt = true
+
+# verify_jwt = false because:
+#   - child login requests carry no Supabase JWT
+#   - parent JWT for create_child is validated manually inside the function
+[functions.child-auth]
+verify_jwt = false
