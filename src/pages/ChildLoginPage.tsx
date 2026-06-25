@@ -1,37 +1,58 @@
+// Phase C: ChildLoginPage now uses useChildAuth (username + parentEmail)
+// instead of useAuth (email-based Supabase login).
+//
+// Visual structure is 100% preserved:
+//   - Same floating elements (Sparkles, Heart, Star)
+//   - Same card classes, same layout, same fonts
+//   - Same "Sign Up" and "Parent Sign In" footer links
+//   - Same "Fun & Safe" info card at the bottom
+//
+// Only changes inside the card:
+//   1. Email field → Username field (User icon, text input)
+//   2. New parentEmail field added (Mail icon, email input)
+//   3. "Forgot password?" link removed (parent manages password resets)
+//   4. handleLogin now calls childSignIn from useChildAuth
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Sparkles, Heart, Star, Mail, Lock, Eye, EyeOff, Gamepad2 } from "lucide-react";
+import { Sparkles, Heart, Star, Mail, Lock, Eye, EyeOff, Gamepad2, User } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useChildAuth } from "@/hooks/useChildAuth";
 
 const ChildLoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    email: "",
+    username: "",
+    parentEmail: "",
     password: "",
   });
   const [loading, setLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { childSignIn } = useChildAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signIn(formData.email, formData.password, 'child');
-    
+
+    const { error } = await childSignIn(
+      formData.username,
+      formData.parentEmail,
+      formData.password
+    );
+
     if (!error) {
-      navigate('/child');
+      navigate("/child");
     }
-    
+
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-gradient-background flex items-center justify-center p-4">
-      {/* Floating Elements */}
+      {/* Floating Elements — preserved as-is */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <Sparkles className="absolute top-20 left-20 h-6 w-6 text-fun-yellow animate-float" />
         <Heart className="absolute top-32 right-32 h-5 w-5 text-fun-pink animate-float" style={{ animationDelay: '1s' }} />
@@ -40,7 +61,7 @@ const ChildLoginPage = () => {
       </div>
 
       <div className="w-full max-w-md space-y-6">
-        {/* Header */}
+        {/* Header — unchanged */}
         <div className="text-center space-y-4">
           <div className="flex items-center justify-center gap-2 mb-6">
             <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-fun animate-bounce-in">
@@ -55,7 +76,7 @@ const ChildLoginPage = () => {
           </p>
         </div>
 
-        {/* Login Form */}
+        {/* Login Form Card — same classes, updated fields inside */}
         <Card className="shadow-fun bg-card/80 backdrop-blur border-2 border-primary/20 hover-lift">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-comic text-foreground">
@@ -67,24 +88,53 @@ const ChildLoginPage = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
+
+              {/* Username field (replaces Email) */}
               <div className="space-y-2">
-                <Label htmlFor="email" className="font-comic text-foreground">
-                  Email Address
+                <Label htmlFor="username" className="font-comic text-foreground">
+                  Username
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    id="username"
+                    type="text"
+                    placeholder="your_username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     className="pl-10 font-comic"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    autoComplete="username"
                     required
                   />
                 </div>
               </div>
 
+              {/* Parent email field (new) */}
+              <div className="space-y-2">
+                <Label htmlFor="parentEmail" className="font-comic text-foreground">
+                  Parent's Email
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="parentEmail"
+                    type="email"
+                    placeholder="parent@email.com"
+                    value={formData.parentEmail}
+                    onChange={(e) => setFormData({ ...formData, parentEmail: e.target.value })}
+                    className="pl-10 font-comic"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground font-comic">
+                  Your parent's email address
+                </p>
+              </div>
+
+              {/* Password field — unchanged */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="font-comic text-foreground">
                   Password
@@ -96,8 +146,9 @@ const ChildLoginPage = () => {
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="pl-10 pr-10 font-comic"
+                    autoComplete="current-password"
                     required
                   />
                   <Button
@@ -106,21 +157,14 @@ const ChildLoginPage = () => {
                     size="sm"
                     className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-sm">
-                <Link 
-                  to="/forgot-password" 
-                  className="text-primary hover:underline font-comic"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
+              {/* Submit — same variant/size/classes */}
               <Button type="submit" variant="fun" size="lg" className="w-full" disabled={loading}>
                 {loading ? "Signing In..." : "Sign In & Play! 🚀"}
               </Button>
@@ -128,12 +172,12 @@ const ChildLoginPage = () => {
           </CardContent>
         </Card>
 
-        {/* Sign Up Link */}
+        {/* Sign Up Link — unchanged */}
         <div className="text-center">
           <p className="text-sm text-muted-foreground font-comic">
             New to EMR Play?{" "}
-            <Link 
-              to="/child/signup" 
+            <Link
+              to="/child/signup"
               className="text-primary hover:underline font-bold"
             >
               Create kid account
@@ -141,12 +185,12 @@ const ChildLoginPage = () => {
           </p>
         </div>
 
-        {/* Parent Login Link */}
+        {/* Parent Login Link — unchanged */}
         <div className="text-center">
           <p className="text-sm text-muted-foreground font-comic">
             Are you a parent?{" "}
-            <Link 
-              to="/parent/login" 
+            <Link
+              to="/parent/login"
               className="text-primary hover:underline font-bold"
             >
               Parent Sign In
@@ -154,10 +198,10 @@ const ChildLoginPage = () => {
           </p>
         </div>
 
-        {/* Fun Notice */}
+        {/* Fun Notice Card — unchanged */}
         <Card className="bg-gradient-primary text-primary-foreground shadow-fun">
           <CardContent className="p-4 text-center">
-            <h4 className="font-bold font-comic mb-2">🎮 Fun & Safe</h4>
+            <h4 className="font-bold font-comic mb-2">🎮 Fun &amp; Safe</h4>
             <p className="text-sm opacity-90 font-comic">
               Your adventure continues here! Learn about emotions while having fun.
             </p>

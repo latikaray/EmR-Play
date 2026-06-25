@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase
+supabase/.temp/
+
+# Smoke test scripts (contain anon key; not production code)
+supabase/functions/**/smoke_test.*

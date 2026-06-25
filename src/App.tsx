@@ -39,17 +39,24 @@ import EmoPage from "./pages/EmoPage";
 import SelActivitiesGuidePage from "./pages/SelActivitiesGuidePage";
 import NotFound from "./pages/NotFound";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { ChildAuthProvider, useChildAuth } from "./hooks/useChildAuth";
+import ChildAuthGuard from "./components/ChildAuthGuard";
 
 const queryClient = new QueryClient();
 
 // Router component that handles role-based routing
 const AppRouter = () => {
   const { user, role, loading } = useAuth();
+  const { childSession, childLoading } = useChildAuth();
 
-  if (loading) {
-    return <div className="min-h-screen bg-gradient-background flex items-center justify-center">
-      <div className="text-2xl font-comic">Loading...</div>
-    </div>;
+  // Wait for both auth systems to resolve before rendering routes.
+  // This prevents redirect loops caused by transiently null state.
+  if (loading || childLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-background flex items-center justify-center">
+        <div className="text-2xl font-comic">Loading...</div>
+      </div>
+    );
   }
 
   return (
@@ -58,35 +65,42 @@ const AppRouter = () => {
         {/* Public routes */}
         <Route path="/welcome" element={<LandingPage />} />
         
-        {/* Separate login pages */}
+        {/* Separate login / signup pages */}
         <Route path="/parent/login" element={!user ? <ParentLoginPage /> : <Navigate to="/parent" replace />} />
-        <Route path="/child/login" element={!user ? <ChildLoginPage /> : <Navigate to="/child" replace />} />
+        {/* Child login: redirect away if child already has a session */}
+        <Route path="/child/login" element={!childSession ? <ChildLoginPage /> : <Navigate to="/child" replace />} />
         <Route path="/parent/signup" element={!user ? <ParentSignUpPage /> : <Navigate to="/parent" replace />} />
-        <Route path="/child/signup" element={!user ? <ChildSignUpPage /> : <Navigate to="/child" replace />} />
+        <Route path="/child/signup" element={<ChildSignUpPage />} />
         
         {/* OTP and password routes */}
         <Route path="/verify-otp" element={<VerifyOTPPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         
-        {/* Role-based home routes */}
-        <Route path="/" element={!user ? <LandingPage /> : <Navigate to={role === 'parent' ? '/parent' : '/child'} replace />} />
+        {/* Root: child session wins → /child; parent session → /parent; else landing */}
+        <Route path="/" element={
+          childSession
+            ? <Navigate to="/child" replace />
+            : (user && role === 'parent')
+              ? <Navigate to="/parent" replace />
+              : <LandingPage />
+        } />
         
-        {/* Child routes - only accessible by children */}
-        <Route path="/child" element={user && role === 'child' ? <HomePage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities" element={user && role === 'child' ? <ActivitiesPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/story" element={user && role === 'child' ? <StoryPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/draw" element={user && role === 'child' ? <DrawMoodPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/breathing" element={user && role === 'child' ? <BreathingPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/gratitude" element={user && role === 'child' ? <GratitudeJournalPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/emoji-match" element={user && role === 'child' ? <EmojiMatchPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/emotion-wheel" element={user && role === 'child' ? <EmotionWheelPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/classroom-maze" element={user && role === 'child' ? <ClassroomMazePage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/conflict-roleplay" element={user && role === 'child' ? <ConflictRolePlayPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/eq-quiz" element={user && role === 'child' ? <EQQuizPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/peer-pressure-sim" element={user && role === 'child' ? <PeerPressureSimPage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/activities/peer-pressure-guide" element={user && role === 'child' ? <PeerPressureGuidePage /> : <Navigate to="/child/login" replace />} />
-        <Route path="/child-progress" element={user && role === 'child' ? <ChildProgressPage /> : <Navigate to="/child/login" replace />} />
+        {/* Child routes — protected by ChildAuthGuard (uses localStorage JWT, not Supabase) */}
+        <Route path="/child" element={<ChildAuthGuard><HomePage /></ChildAuthGuard>} />
+        <Route path="/activities" element={<ChildAuthGuard><ActivitiesPage /></ChildAuthGuard>} />
+        <Route path="/activities/story" element={<ChildAuthGuard><StoryPage /></ChildAuthGuard>} />
+        <Route path="/activities/draw" element={<ChildAuthGuard><DrawMoodPage /></ChildAuthGuard>} />
+        <Route path="/activities/breathing" element={<ChildAuthGuard><BreathingPage /></ChildAuthGuard>} />
+        <Route path="/activities/gratitude" element={<ChildAuthGuard><GratitudeJournalPage /></ChildAuthGuard>} />
+        <Route path="/activities/emoji-match" element={<ChildAuthGuard><EmojiMatchPage /></ChildAuthGuard>} />
+        <Route path="/activities/emotion-wheel" element={<ChildAuthGuard><EmotionWheelPage /></ChildAuthGuard>} />
+        <Route path="/activities/classroom-maze" element={<ChildAuthGuard><ClassroomMazePage /></ChildAuthGuard>} />
+        <Route path="/activities/conflict-roleplay" element={<ChildAuthGuard><ConflictRolePlayPage /></ChildAuthGuard>} />
+        <Route path="/activities/eq-quiz" element={<ChildAuthGuard><EQQuizPage /></ChildAuthGuard>} />
+        <Route path="/activities/peer-pressure-sim" element={<ChildAuthGuard><PeerPressureSimPage /></ChildAuthGuard>} />
+        <Route path="/activities/peer-pressure-guide" element={<ChildAuthGuard><PeerPressureGuidePage /></ChildAuthGuard>} />
+        <Route path="/child-progress" element={<ChildAuthGuard><ChildProgressPage /></ChildAuthGuard>} />
         
         {/* Parent routes - only accessible by parents */}
         <Route path="/parent" element={user && role === 'parent' ? <ParentHomePage /> : <Navigate to="/parent/login" replace />} />
@@ -119,7 +133,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AppRouter />
+          {/* ChildAuthProvider is independent of AuthProvider.
+              It manages the localStorage-based child session. */}
+          <ChildAuthProvider>
+            <AppRouter />
+          </ChildAuthProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

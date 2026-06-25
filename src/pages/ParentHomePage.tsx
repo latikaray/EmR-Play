@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Heart, BookOpen, MessageSquare, Gamepad2, FileText, Users, Brain, Coffee, Link2, Trophy, Flame, Star, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
-import LinkChildAccount from "@/components/LinkChildAccount";
+import CreateChildAccount from "@/components/CreateChildAccount";
 import { useGamification } from "@/hooks/useGamification";
 
 const ParentHomePage = () => {
@@ -144,8 +144,8 @@ const ParentHomePage = () => {
           </CardContent>
         </Card>
 
-        {/* Link Child Account */}
-        <LinkChildAccount />
+        {/* Child Accounts — Phase C: CreateChildAccount replaces LinkChildAccount */}
+        <CreateChildAccount />
 
         {/* Main Activities Grid */}
         <div className="mb-8">
