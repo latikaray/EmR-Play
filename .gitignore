@@ -26,5 +26,9 @@ dist-ssr
 # Supabase
 supabase/.temp/
 
-# Smoke test scripts (contain anon key; not production code)
+# All PowerShell helper scripts in functions/ dirs contain local-dev-only
+# credentials (service_role keys, parent passwords) — never commit them.
+supabase/functions/**/*.ps1
 supabase/functions/**/smoke_test.*
+supabase/functions/**/debug_*.ps1
+supabase/functions/**/deploy*.ps1
