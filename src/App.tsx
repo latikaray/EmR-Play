@@ -113,11 +113,20 @@ const AppRouter = () => {
         <Route path="/parent/sel-activities-guide" element={user && role === 'parent' ? <SelActivitiesGuidePage /> : <Navigate to="/parent/login" replace />} />
         <Route path="/parent/child-progress" element={user && role === 'parent' ? <ChildProgressPage /> : <Navigate to="/parent/login" replace />} />
         
-        {/* Shared routes */}
-        <Route path="/progress" element={user ? <ChildProgressPage /> : <Navigate to="/welcome" replace />} />
-        <Route path="/profile" element={user ? <ProfilePage /> : <Navigate to="/welcome" replace />} />
-        <Route path="/badges" element={user ? <BadgesPage /> : <Navigate to="/welcome" replace />} />
-        <Route path="/emo" element={user ? <EmoPage /> : <Navigate to="/welcome" replace />} />
+        {/* Shared routes — accessible by parent (user) OR child (childSession) */}
+        <Route path="/progress" element={
+          childSession ? <Navigate to="/child-progress" replace /> :
+          user ? <ChildProgressPage /> : <Navigate to="/welcome" replace />
+        } />
+        <Route path="/profile" element={
+          (childSession || user) ? <ProfilePage /> : <Navigate to="/welcome" replace />
+        } />
+        <Route path="/badges" element={
+          (childSession || user) ? <BadgesPage /> : <Navigate to="/welcome" replace />
+        } />
+        <Route path="/emo" element={
+          (childSession || user) ? <EmoPage /> : <Navigate to="/welcome" replace />
+        } />
         
         {/* 404 */}
         <Route path="*" element={<NotFound />} />

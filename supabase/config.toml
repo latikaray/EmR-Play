@@ -8,3 +8,9 @@ verify_jwt = true
 #   - parent JWT for create_child is validated manually inside the function
 [functions.child-auth]
 verify_jwt = false
+
+# child-data handles all child progress data (activities, mood, XP, badges).
+# verify_jwt = false because child session tokens are signed with
+# CHILD_SESSION_SECRET (not Supabase's JWT secret) and verified manually.
+[functions.child-data]
+verify_jwt = false
