@@ -22,8 +22,8 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
-import { create, getNumericDate } from "https://deno.land/x/djwt@v3.0.2/mod.ts";
+// bcryptjs = pure-JS bcrypt, no Deno.run(), works in Supabase edge runtime
+import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
 // ---------------------------------------------------------------------------
 // CORS — same policy as emo-chat
@@ -75,7 +75,8 @@ async function getSigningKey(): Promise<CryptoKey> {
 }
 
 /**
- * Sign a child session JWT.
+ * Sign a child session JWT using WebCrypto HS256.
+ * This avoids the djwt dependency which has Deno-specific internals.
  *
  * Claims:
  *   sub          child_accounts.id
@@ -95,19 +96,39 @@ async function signChildToken(payload: {
   const key = await getSigningKey();
   const now = Math.floor(Date.now() / 1000);
 
-  return create(
-    { alg: "HS256", typ: "JWT" },
-    {
-      sub:          payload.childId,
-      parent_id:    payload.parentId,
-      username:     payload.username,
-      display_name: payload.displayName ?? null,
-      role:         "child",
-      iat:          now,
-      exp:          getNumericDate(60 * 60 * 24 * 7), // 7 days
-    },
-    key
+  const header  = { alg: "HS256", typ: "JWT" };
+  const claims  = {
+    sub:          payload.childId,
+    parent_id:    payload.parentId,
+    username:     payload.username,
+    display_name: payload.displayName ?? null,
+    role:         "child",
+    iat:          now,
+    exp:          now + 60 * 60 * 24 * 7, // 7 days
+  };
+
+  const b64url = (obj: unknown) =>
+    btoa(JSON.stringify(obj))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");
+
+  const headerB64  = b64url(header);
+  const claimsB64  = b64url(claims);
+  const sigInput   = `${headerB64}.${claimsB64}`;
+
+  const sigBytes = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(sigInput)
   );
+
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sigBytes)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+
+  return `${sigInput}.${sigB64}`;
 }
 
 /** Consistent JSON error response. */
@@ -190,8 +211,8 @@ async function handleCreateChild(
     return err("password must be at least 8 characters");
   }
 
-  // 4. Hash password with bcrypt (cost 12)
-  const passwordHash = await bcrypt.hash(password, await bcrypt.genSalt(12));
+  // 4. Hash password with bcrypt (cost 10 - bcryptjs default, compatible)
+  const passwordHash = bcrypt.hashSync(password, 10);
 
   // 5. Insert via private helper (service_role)
   const { data: rows, error: insertErr } = await admin.rpc(
@@ -299,40 +320,42 @@ async function handleLogin(body: Record<string, unknown>): Promise<Response> {
 
   const admin = adminClient();
 
-  // 1. Resolve parent by email → get their auth.users.id
-  //    We query auth.users via the admin client (service_role can access auth schema).
-  const { data: parentRow, error: parentErr } = await admin
-    .from("users" as never) // admin client hits auth.users via the REST admin API
-    .select("id")
-    .eq("email", parentEmail)
-    .single();
+  // 1. Resolve parent by email → auth.users.id
+  //
+  // Use the Auth Admin REST API directly. This is the only reliable way to
+  // look up a user by email server-side without needing a deployed SQL function.
+  // PostgREST doesn't expose auth.users; the Supabase JS admin client's
+  // listUsers() paginates ALL users which is impractical. Direct REST is correct.
+  const authListRes = await fetch(
+    `${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(parentEmail)}&per_page=1`,
+    {
+      headers: {
+        "apikey":        SERVICE_ROLE_KEY,
+        "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+    }
+  );
 
-  // If the direct auth.users query fails (PostgREST doesn't expose auth.users),
-  // fall back to the private RPC helper.
-  let parentId: string | null = null;
-
-  if (!parentErr && parentRow) {
-    parentId = (parentRow as { id: string }).id;
-  } else {
-    // Use our private.resolve_parent_by_email helper via rpc
-    // Called with service_role so the private function executes.
-    const { data: resolved } = await admin.rpc(
-      "resolve_parent_by_email" as never,
-      { p_email: parentEmail } as never
-    );
-    parentId = resolved as string | null;
+  if (!authListRes.ok) {
+    console.error("child-auth login: auth admin user lookup failed", authListRes.status);
+    return err("Failed to process login", 500);
   }
 
+  const authList = await authListRes.json();
+  // The API returns { users: [...] } or { aud: ..., users: [...] }
+  const parentUser = Array.isArray(authList?.users) ? authList.users[0] : null;
+  const parentId   = parentUser?.id ?? null;
+
   if (!parentId) {
-    // Vague: don't reveal that the parent email doesn't exist
+    // Vague: don't reveal whether the parent email exists
     return err("Invalid credentials", 401);
   }
 
-  // 2. Fetch child row by (parent_user_id, username) — includes password_hash
-  //    The admin client bypasses RLS so it can read password_hash.
+  // 2. Fetch child row by (parent_user_id, username) — admin client reads ALL columns
+  //    including password_hash (service_role bypasses column-level grants).
   const { data: child, error: childErr } = await admin
     .from("child_accounts")
-    .select("*")
+    .select("id, parent_user_id, username, display_name, avatar_url, password_hash")
     .eq("parent_user_id", parentId)
     .eq("username", username)
     .maybeSingle();
@@ -343,7 +366,7 @@ async function handleLogin(body: Record<string, unknown>): Promise<Response> {
   }
 
   // 3. Verify password with bcrypt (constant-time comparison)
-  const passwordValid = await bcrypt.compare(password, child.password_hash);
+  const passwordValid = bcrypt.compareSync(password, child.password_hash);
   if (!passwordValid) {
     return err("Invalid credentials", 401);
   }
