@@ -322,12 +322,12 @@ async function handleLogin(body: Record<string, unknown>): Promise<Response> {
 
   // 1. Resolve parent by email → auth.users.id
   //
-  // Use the Auth Admin REST API directly. This is the only reliable way to
-  // look up a user by email server-side without needing a deployed SQL function.
-  // PostgREST doesn't expose auth.users; the Supabase JS admin client's
-  // listUsers() paginates ALL users which is impractical. Direct REST is correct.
+  // IMPORTANT: The Supabase auth admin `?email=` filter does a substring/ILIKE
+  // match, NOT an exact match. We must fetch multiple results and find the
+  // exact email match ourselves. Without this, "alex@gmail.com" might return
+  // results for "realex@gmail.com" first, giving the wrong parent ID.
   const authListRes = await fetch(
-    `${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(parentEmail)}&per_page=1`,
+    `${SUPABASE_URL}/auth/v1/admin/users?email=${encodeURIComponent(parentEmail)}&per_page=50`,
     {
       headers: {
         "apikey":        SERVICE_ROLE_KEY,
@@ -342,8 +342,13 @@ async function handleLogin(body: Record<string, unknown>): Promise<Response> {
   }
 
   const authList = await authListRes.json();
-  // The API returns { users: [...] } or { aud: ..., users: [...] }
-  const parentUser = Array.isArray(authList?.users) ? authList.users[0] : null;
+  // Exact case-insensitive match on email
+  const users: Array<{ id: string; email: string }> = Array.isArray(authList?.users)
+    ? authList.users
+    : [];
+  const parentUser = users.find(
+    (u) => u.email?.toLowerCase() === parentEmail.toLowerCase()
+  ) ?? null;
   const parentId   = parentUser?.id ?? null;
 
   if (!parentId) {
