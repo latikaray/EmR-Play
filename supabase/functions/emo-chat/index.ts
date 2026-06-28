@@ -1,5 +1,5 @@
 // Emo - friendly AI help assistant for EMR Play
-// Streams responses from Lovable AI Gateway back to the browser.
+// Streams responses from Google Gemini API back to the browser.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,10 +89,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "Missing LOVABLE_API_KEY" }),
+        JSON.stringify({ error: "Missing GEMINI_API_KEY" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -135,14 +135,14 @@ Deno.serve(async (req) => {
         ? "\n\nThe current user is a CHILD. Use simple, warm language."
         : "";
 
-    const upstream = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
         stream: true,
         messages: [
           { role: "system", content: SYSTEM_PROMPT + roleHint },
@@ -153,16 +153,12 @@ Deno.serve(async (req) => {
 
     if (!upstream.ok || !upstream.body) {
       const text = await upstream.text().catch(() => "");
-      const status = upstream.status === 429 || upstream.status === 402
-        ? upstream.status
-        : 500;
+      const status = upstream.status === 429 ? 429 : 500;
       return new Response(
         JSON.stringify({
           error: status === 429
             ? "Emo is a little tired — please try again in a moment."
-            : status === 402
-              ? "AI credits are exhausted. Please add credits to keep chatting with Emo."
-              : `AI gateway error: ${text || upstream.statusText}`,
+            : `AI API error: ${text || upstream.statusText}`,
         }),
         { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
