@@ -68,10 +68,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
-      const tableName = userRole === 'parent' ? 'parent_profiles' : 'child_profiles';
-      
+      // Phase E: useAuth is parent-only. child_profiles is dropped.
+      // Children authenticate via the child-auth edge function (useChildAuth).
       const { data, error } = await supabase
-        .from(tableName)
+        .from('parent_profiles')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();

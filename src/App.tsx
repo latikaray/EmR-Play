@@ -11,7 +11,6 @@ import ProfilePage from "./pages/ProfilePage";
 import ParentLoginPage from "./pages/ParentLoginPage";
 import ChildLoginPage from "./pages/ChildLoginPage";
 import ParentSignUpPage from "./pages/ParentSignUpPage";
-import ChildSignUpPage from "./pages/ChildSignUpPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import VerifyOTPPage from "./pages/VerifyOTPPage";
@@ -70,7 +69,6 @@ const AppRouter = () => {
         {/* Child login: redirect away if child already has a session */}
         <Route path="/child/login" element={!childSession ? <ChildLoginPage /> : <Navigate to="/child" replace />} />
         <Route path="/parent/signup" element={!user ? <ParentSignUpPage /> : <Navigate to="/parent" replace />} />
-        <Route path="/child/signup" element={<ChildSignUpPage />} />
         
         {/* OTP and password routes */}
         <Route path="/verify-otp" element={<VerifyOTPPage />} />

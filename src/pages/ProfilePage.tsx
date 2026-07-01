@@ -23,10 +23,10 @@ import {
   Trash2
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useChildAuth } from "@/hooks/useChildAuth";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import EnterLinkCode from "@/components/EnterLinkCode";
 import { useGamification } from "@/hooks/useGamification";
 
 const ProfilePage = () => {
@@ -38,20 +38,27 @@ const ProfilePage = () => {
     avatar: ""
   });
   const { user, signOut, deleteAccount, profile, role } = useAuth();
+  const { childSession, childSignOut } = useChildAuth();
   const { userXP, earnedBadges, level, levelProgress, unlockedAvatars, allAvatars } = useGamification();
   const navigate = useNavigate();
+  const isChild = !!childSession;
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Child identity comes from the edge-function JWT session
+    if (isChild && childSession) {
+      setProfileData((p) => ({ ...p, name: childSession.displayName || childSession.username || "" }));
+      return;
+    }
     if (profile?.display_name) {
       setProfileData((p) => ({ ...p, name: profile.display_name || "" }));
     }
     if (profile?.avatar_url) {
       setProfileData((p) => ({ ...p, avatar: profile.avatar_url || "" }));
     }
-  }, [profile?.display_name, profile?.avatar_url]);
+  }, [isChild, childSession, profile?.display_name, profile?.avatar_url]);
 
   const moodHistory = [
     { mood: "Happy", count: 15, color: "bg-fun-yellow", emoji: "😊" },
@@ -131,8 +138,13 @@ const ProfilePage = () => {
   };
 
   const handleLogout = async () => {
-    await signOut();
-    navigate('/welcome');
+    if (isChild) {
+      childSignOut();
+      navigate('/child/login');
+    } else {
+      await signOut();
+      navigate('/welcome');
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -163,15 +175,18 @@ const ProfilePage = () => {
         {/* Profile Info Card */}
         <Card className="shadow-fun bg-card/80 backdrop-blur border-2 border-primary/20">
           <CardHeader className="text-center relative">
-            <Button
-              variant="outline"
-              size="sm"
-              className="absolute top-4 right-4"
-              onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-            >
-              {isEditing ? <Save className="h-4 w-4 mr-2" /> : <Edit2 className="h-4 w-4 mr-2" />}
-              {isEditing ? "Save" : "Edit"}
-            </Button>
+            {/* Edit button only for parents — children have a read-only profile */}
+            {!isChild && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="absolute top-4 right-4"
+                onClick={() => isEditing ? handleSave() : setIsEditing(true)}
+              >
+                {isEditing ? <Save className="h-4 w-4 mr-2" /> : <Edit2 className="h-4 w-4 mr-2" />}
+                {isEditing ? "Save" : "Edit"}
+              </Button>
+            )}
             
             <div className="relative w-24 h-24 mx-auto mb-4">
               <Avatar className="w-24 h-24 border-4 border-primary shadow-fun">
@@ -180,7 +195,7 @@ const ProfilePage = () => {
                   {profileData.name.charAt(0) || 'U'}
                 </AvatarFallback>
               </Avatar>
-              {isEditing && (
+              {isEditing && !isChild && (
                 <>
                   <input
                     ref={fileInputRef}
@@ -204,7 +219,7 @@ const ProfilePage = () => {
             </div>
 
             <div className="space-y-4">
-              {isEditing ? (
+              {isEditing && !isChild ? (
                 <div className="space-y-4 max-w-md mx-auto">
                   <div>
                     <Label htmlFor="name" className="font-comic">Name</Label>
@@ -240,11 +255,16 @@ const ProfilePage = () => {
                   <CardTitle className="text-2xl font-comic text-foreground">
                     {profileData.name}
                   </CardTitle>
-                  <div className="flex justify-center gap-4 text-sm text-muted-foreground font-comic">
-                    <span>Age: {profileData.age}</span>
-                    <span>•</span>
-                    <span>Favorite Color: {profileData.favoriteColor}</span>
-                  </div>
+                  {isChild && (
+                    <p className="text-xs text-muted-foreground font-comic">Ask your parent to update your profile</p>
+                  )}
+                  {!isChild && (
+                    <div className="flex justify-center gap-4 text-sm text-muted-foreground font-comic">
+                      <span>Age: {profileData.age}</span>
+                      <span>•</span>
+                      <span>Favorite Color: {profileData.favoriteColor}</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -389,13 +409,9 @@ const ProfilePage = () => {
           </CardContent>
         </Card>
 
-        {/* Link to Parent (only for children) */}
-        {role === 'child' && (
-          <EnterLinkCode />
-        )}
 
-        {/* Account Actions */}
-        {user && (
+        {/* Account Actions — shown for both parents (user) and children (childSession) */}
+        {(user || isChild) && (
           <Card className="shadow-fun bg-card/80 backdrop-blur border-2 border-primary/20">
             <CardHeader>
               <CardTitle className="text-xl font-comic text-foreground flex items-center gap-2">

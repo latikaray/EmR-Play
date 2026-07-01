@@ -202,19 +202,6 @@ const ParentSignUpPage = () => {
           </p>
         </div>
 
-        {/* Child Signup Link */}
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground font-comic">
-            Want to create a child account?{" "}
-            <Link 
-              to="/child/signup" 
-              className="text-primary hover:underline font-bold"
-            >
-              Child Sign Up
-            </Link>
-          </p>
-        </div>
-
         {/* Security Notice */}
         <Card className="bg-gradient-primary text-primary-foreground shadow-fun">
           <CardContent className="p-4 text-center">

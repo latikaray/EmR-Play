@@ -172,18 +172,6 @@ const ChildLoginPage = () => {
           </CardContent>
         </Card>
 
-        {/* Sign Up Link — unchanged */}
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground font-comic">
-            New to EMR Play?{" "}
-            <Link
-              to="/child/signup"
-              className="text-primary hover:underline font-bold"
-            >
-              Create kid account
-            </Link>
-          </p>
-        </div>
 
         {/* Parent Login Link — unchanged */}
         <div className="text-center">

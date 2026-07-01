@@ -62,16 +62,14 @@ const LandingPage = () => {
                 </div>
               </div>
               <div className="space-y-3 pt-4">
-                <Link to="/child/signup" className="w-full">
+                <Link to="/child/login" className="w-full">
                   <Button variant="fun" size="lg" className="w-full text-lg">
                     Start Playing! 🚀
                   </Button>
                 </Link>
-                <Link to="/child/login" className="w-full">
-                  <Button variant="outline" size="lg" className="w-full font-comic">
-                    I Already Have an Account
-                  </Button>
-                </Link>
+                <p className="text-xs text-center text-muted-foreground font-comic">
+                  Ask your parent to set up your account first!
+                </p>
               </div>
             </CardContent>
           </Card>
