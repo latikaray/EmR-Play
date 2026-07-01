@@ -68,7 +68,7 @@ const LandingPage = () => {
                   </Button>
                 </Link>
                 <p className="text-xs text-center text-muted-foreground font-comic">
-                  Ask your parent to set up your account first!
+                  New here? Ask your parent to create your account first 👆
                 </p>
               </div>
             </CardContent>

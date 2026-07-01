@@ -5,8 +5,10 @@
  * auth.users. This function is the only trusted write path for child_accounts.
  *
  * Supported actions:
- *   create_child  — parent creates a child account (requires parent JWT)
- *   login         — child logs in with username + parentEmail + password
+ *   create_child    — parent creates a child account (requires parent JWT)
+ *   login           — child logs in with username + parentEmail + password
+ *   update_password — parent resets a child's password (requires parent JWT)
+ *   list_children   — parent lists their children (requires parent JWT)
  *
  * Security model:
  *   - Uses SUPABASE_SERVICE_ROLE_KEY to call private.* SQL helpers
@@ -399,6 +401,75 @@ async function handleLogin(body: Record<string, unknown>): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
+// Action: update_password
+// ---------------------------------------------------------------------------
+/**
+ * Allows a parent to reset a child's password.
+ *
+ * Required body fields:
+ *   action     "update_password"
+ *   childId    UUID of the child account to update
+ *   newPassword  plain text new password (min 8 chars; hashed here)
+ *
+ * Requires a valid parent Authorization JWT. The child must belong to that parent.
+ */
+async function handleUpdatePassword(
+  req: Request,
+  body: Record<string, unknown>
+): Promise<Response> {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader.startsWith("Bearer ")) {
+    return err("Authorization header required", 401);
+  }
+
+  // Validate the parent JWT
+  const parentClient = anonClient(authHeader);
+  const { data: { user: parentUser }, error: authErr } = await parentClient.auth.getUser();
+  if (authErr || !parentUser) {
+    return err("Invalid or expired parent token", 401);
+  }
+
+  const childId     = typeof body.childId     === "string" ? body.childId.trim()     : null;
+  const newPassword = typeof body.newPassword === "string" ? body.newPassword        : null;
+
+  if (!childId || !newPassword) {
+    return err("childId and newPassword are required", 400);
+  }
+  if (newPassword.length < 8) {
+    return err("Password must be at least 8 characters", 400);
+  }
+
+  // Verify the child belongs to this parent (using admin client)
+  const admin = adminClient();
+  const { data: childRow, error: fetchErr } = await admin
+    .from("child_accounts")
+    .select("id, parent_user_id")
+    .eq("id", childId)
+    .single();
+
+  if (fetchErr || !childRow) {
+    return err("Child account not found", 404);
+  }
+  if (childRow.parent_user_id !== parentUser.id) {
+    return err("You do not have permission to update this child account", 403);
+  }
+
+  // Hash the new password and update
+  const newHash = await bcrypt.hash(newPassword, 12);
+  const { error: updateErr } = await admin
+    .from("child_accounts")
+    .update({ password_hash: newHash, updated_at: new Date().toISOString() })
+    .eq("id", childId);
+
+  if (updateErr) {
+    console.error("child-auth update_password error:", updateErr);
+    return err("Failed to update password", 500);
+  }
+
+  return ok({ message: "Password updated successfully" });
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 Deno.serve(async (req: Request) => {
@@ -443,6 +514,9 @@ Deno.serve(async (req: Request) => {
 
       case "login":
         return await handleLogin(body);
+
+      case "update_password":
+        return await handleUpdatePassword(req, body);
 
       default:
         return err(`Unknown action: "${action}"`, 400);

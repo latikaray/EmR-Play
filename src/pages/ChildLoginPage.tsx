@@ -19,14 +19,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sparkles, Heart, Star, Mail, Lock, Eye, EyeOff, Gamepad2, User } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useChildAuth } from "@/hooks/useChildAuth";
 
 const ChildLoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     username: "",
-    parentEmail: "",
+    parentEmail: searchParams.get("parentEmail") ?? "",
     password: "",
   });
   const [loading, setLoading] = useState(false);
@@ -130,7 +131,7 @@ const ChildLoginPage = () => {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground font-comic">
-                  Your parent's email address
+                  Your parent's email — the one they used to sign up
                 </p>
               </div>
 
